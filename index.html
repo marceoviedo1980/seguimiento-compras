@@ -544,6 +544,109 @@
       margin-bottom: 12px;
     }
 
+    /* MODAL CONFIRMACION ELIMINAR */
+    .modal-confirmar {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,76,117,0.6);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-confirmar.activo { display: flex; }
+    .confirmar-box {
+      background: white;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 380px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: popIn 0.2s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.92); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+    .confirmar-top {
+      background: var(--rojo);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+    .confirmar-icono { font-size: 36px; margin-bottom: 8px; }
+    .confirmar-titulo { font-size: 17px; font-weight: 700; }
+    .confirmar-body { padding: 20px; }
+    .confirmar-texto {
+      font-size: 14px;
+      color: var(--gris-medio);
+      text-align: center;
+      margin-bottom: 6px;
+      line-height: 1.5;
+    }
+    .confirmar-codigo {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--rojo);
+      text-align: center;
+      background: var(--rojo-claro);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .confirmar-botones {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn-cancelar-eliminar {
+      padding: 11px;
+      border-radius: var(--radio);
+      border: 1.5px solid var(--borde);
+      background: white;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--gris-medio);
+      transition: all 0.2s;
+    }
+    .btn-cancelar-eliminar:hover { background: var(--gris-claro); }
+    .btn-confirmar-eliminar {
+      padding: 11px;
+      border-radius: var(--radio);
+      border: none;
+      background: var(--rojo);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: white;
+      transition: all 0.2s;
+    }
+    .btn-confirmar-eliminar:hover { background: #a93226; }
+    .btn-eliminar-solicitud {
+      width: 100%;
+      padding: 10px;
+      border-radius: var(--radio);
+      border: 1.5px solid var(--rojo);
+      background: white;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--rojo);
+      transition: all 0.2s;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-eliminar-solicitud:hover { background: var(--rojo-claro); }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -677,12 +780,30 @@
   </div>
 </div>
 
+<!-- MODAL CONFIRMAR ELIMINAR -->
+<div class="modal-confirmar" id="modalConfirmarEliminar">
+  <div class="confirmar-box">
+    <div class="confirmar-top">
+      <div class="confirmar-icono">🗑️</div>
+      <div class="confirmar-titulo">¿Eliminar este proceso?</div>
+    </div>
+    <div class="confirmar-body">
+      <p class="confirmar-texto">Esta acción es <strong>irreversible</strong>. Se eliminará permanentemente el proceso:</p>
+      <div class="confirmar-codigo" id="confirmarCodigo">—</div>
+      <div class="confirmar-botones">
+        <button class="btn-cancelar-eliminar" onclick="cerrarConfirmarEliminar()">Cancelar</button>
+        <button class="btn-confirmar-eliminar" id="btnConfirmarEliminar" onclick="ejecutarEliminar()">Sí, eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, serverTimestamp, query, orderBy }
+  import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -723,6 +844,9 @@
   window.avanzarEtapa = avanzarEtapa;
   window.marcarDetenida = marcarDetenida;
   window.marcarCompletada = marcarCompletada;
+  window.pedirConfirmarEliminar = pedirConfirmarEliminar;
+  window.cerrarConfirmarEliminar = cerrarConfirmarEliminar;
+  window.ejecutarEliminar = ejecutarEliminar;
 
   // ESCUCHAR CAMBIOS EN TIEMPO REAL
   const q = query(collection(db, 'solicitudes'), orderBy('fechaCreacion', 'desc'));
@@ -908,6 +1032,9 @@
             ▶ Reanudar proceso
           </button>` : ''}
         </div>
+        <button class="btn-eliminar-solicitud" onclick="pedirConfirmarEliminar('${s.id}', '${s.codigo}')">
+          🗑️ Eliminar este proceso de compra
+        </button>
       </div>`;
 
     document.getElementById('modalDetalle').classList.add('activo');
@@ -1067,6 +1194,37 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Crear Solicitud';
+    }
+  }
+
+  let idParaEliminar = null;
+
+  function pedirConfirmarEliminar(id, codigo) {
+    idParaEliminar = id;
+    document.getElementById('confirmarCodigo').textContent = codigo;
+    document.getElementById('modalConfirmarEliminar').classList.add('activo');
+  }
+
+  function cerrarConfirmarEliminar() {
+    idParaEliminar = null;
+    document.getElementById('modalConfirmarEliminar').classList.remove('activo');
+  }
+
+  async function ejecutarEliminar() {
+    if (!idParaEliminar) return;
+    const btn = document.getElementById('btnConfirmarEliminar');
+    btn.disabled = true;
+    btn.textContent = 'Eliminando...';
+    try {
+      await deleteDoc(doc(db, 'solicitudes', idParaEliminar));
+      cerrarConfirmarEliminar();
+      cerrarDetalle();
+      mostrarToast('🗑️ Proceso eliminado correctamente', 'error');
+    } catch(e) {
+      mostrarToast('Error al eliminar: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sí, eliminar';
     }
   }
 
