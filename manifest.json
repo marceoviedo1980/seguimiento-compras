@@ -1,0 +1,22 @@
+{
+  "name": "Seguimiento Compras - Farmacia",
+  "short_name": "Compras",
+  "description": "Seguimiento de procesos de compra - Farmacia Hospital Municipal La Portada",
+  "start_url": "/seguimiento-compras/",
+  "display": "standalone",
+  "background_color": "#0f4c75",
+  "theme_color": "#0f4c75",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
